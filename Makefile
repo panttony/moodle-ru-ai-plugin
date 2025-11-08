@@ -2,9 +2,8 @@ COMPOSE ?= docker compose
 
 PROJECT_NAME ?= moodle-ai
 PLUGIN_NAME ?= moodle-ru-ai-plugin
-PLUGIN_DIR := ai_manager
+PLUGINS_DIRS := ai_manager moodle-block_ai_chat moodle-block_ai_control moodle-qbank_questiongen moodle-qtype_aitext moodle-tiny_ai
 DIST_DIR ?= dist
-ZIP_FILE ?= $(DIST_DIR)/$(PLUGIN_NAME).zip
 
 .PHONY: help up down restart clean zip dist clean-dist
 
@@ -14,7 +13,7 @@ help:
 	@echo "  make down        - Остановить и удалить контейнеры"
 	@echo "  make restart     - Перезапустить контейнеры"
 	@echo "  make clean       - Остановить и удалить контейнеры + анонимные тома"
-	@echo "  make zip         - Собрать ZIP плагина в каталоге dist/"
+	@echo "  make zip         - Собрать ZIP архивы для каждого плагина в каталоге dist/"
 	@echo "  make clean-dist  - Удалить артефакты сборки (dist/)"
 
 up:
@@ -32,10 +31,13 @@ dist:
 	mkdir -p $(DIST_DIR)
 
 zip: dist
-	@echo "==> Packaging plugin into archive $(ZIP_FILE)"
-	@rm -f $(ZIP_FILE)
-	@zip -rq "$(ZIP_FILE)" "$(PLUGIN_DIR)"
-	@echo "Done: $(ZIP_FILE)"
+	@echo "==> Packaging plugins into separate archives"
+	@rm -f $(DIST_DIR)/*.zip
+	@for dir in $(PLUGINS_DIRS); do \
+		echo "  -> $$dir.zip"; \
+		zip -rq "$(DIST_DIR)/$$dir.zip" "$$dir"; \
+	done
+	@echo "Done: all plugins packaged in $(DIST_DIR)/"
 
 clean-dist:
 	rm -rf $(DIST_DIR)

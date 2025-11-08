@@ -8,7 +8,6 @@
 
 - Make (опционально для удобного запуска)
 
-
 ## Доступные цели:
 
 ```
@@ -16,56 +15,47 @@ make up          - Запустить контейнеры (detached)
 make down        - Остановить и удалить контейнеры
 make restart     - Перезапустить контейнеры
 make clean       - Остановить и удалить контейнеры + анонимные тома
-make zip         - Собрать ZIP плагина в каталоге dist/
+make zip         - Собрать ZIP плагинов в каталоге dist/
 make clean-dist  - Удалить артефакты сборки (dist/)
 ```
 
+## Быстрый старт (локально с помощью Docker)
 
-## Быстрый старт (Docker)
+0. Склонируйте репозиторий с сабмодулями
 
-1. Создайте `zip-архив` из директории `ai_manager`.
+```bash
+git clone --depth 1 \
+    --recurse-submodules --shallow-submodules \
+    https://github.com/artem-burashnikov/moodle-ru-ai-plugin.git
+```
+
+1. Создайте `zip-архивы` из плагинов
 
 ```bash
 make zip
 ```
 
-<img src="assets/images/makezip.png" width="500">
+<img src="assets/images/makezip.png" width="400">
 
-2. В корне проекта должен быть `docker-compose.yml`. Запустите окружение:
+2. Запустите окружение
 
 ```bash
 make up
 ```
 
-<img src="assets/images/makeup.png" width="500">
+<img src="assets/images/makeup.png" width="400">
 
-3. После запуска Moodle будет доступен по адресу:
+3. После запуска Moodle будет доступен по адресу
+
 - URL: http://localhost:8080
 - **username**: user
 - **password**: bitnami
 
-<img src="assets/images/loginpage.png" width="500">
+<img src="assets/images/loginpage.png" width="400">
 
-Остановить контейнеры (сохранив данные):
+4. Загрузите ZIP‑файлы с необходимыми плагинами. Дополнительные сведения будут запрошены, только если тип плагина не будет определён автоматически.
 
-```bash
-make down
-```
-
-Остановить контейнеры (удалив хранилища):
-
-```bash
-make clean
-```
-
-## Установка через загрузку ZIP‑файла
-
-1. Войдите на сайт Moodle под администратором и перейдите в `Администрирование сайта > Плагины > Установка плагинов`.
-2. Загрузите ZIP‑файл с кодом плагина. Дополнительные сведения будут запрошены, только если тип плагина не будет определён автоматически.
-
-<img src="assets/images/plugin.png" width="1000">
-
-3. Проверьте отчёт валидации плагина и завершите установку.
+<img src="assets/images/plugin.png" width="800">
 
 ## Лицензия
 

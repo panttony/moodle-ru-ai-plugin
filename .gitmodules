@@ -1,0 +1,15 @@
+[submodule "moodle-tiny_ai"]
+	path = moodle-tiny_ai
+	url = https://github.com/bycs-lp/moodle-tiny_ai
+[submodule "moodle-block_ai_chat"]
+	path = moodle-block_ai_chat
+	url = https://github.com/bycs-lp/moodle-block_ai_chat
+[submodule "moodle-qtype_aitext"]
+	path = moodle-qtype_aitext
+	url = https://github.com/marcusgreen/moodle-qtype_aitext
+[submodule "moodle-block_ai_control"]
+	path = moodle-block_ai_control
+	url = https://github.com/bycs-lp/moodle-block_ai_control
+[submodule "moodle-qbank_questiongen"]
+	path = moodle-qbank_questiongen
+	url = https://github.com/bycs-lp/moodle-qbank_questiongen
