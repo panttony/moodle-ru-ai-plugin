@@ -46,7 +46,7 @@ make up
 
 <img src="assets/images/loginpage.png" width="500">
 
-Остановить контенеры (сохранив данные):
+Остановить контейнеры (сохранив данные):
 
 ```bash
 make down
