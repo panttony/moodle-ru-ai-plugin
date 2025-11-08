@@ -17,43 +17,24 @@
 namespace aitool_yandexgpt;
 
 use local_ai_manager\local\prompt_response;
+use local_ai_manager\local\request_response;
 use local_ai_manager\local\unit;
 use local_ai_manager\local\usage;
 use local_ai_manager\request_options;
 use Psr\Http\Message\StreamInterface;
 
-/**
- * Connector for YandexGPT.
- *
- * @package    aitool_yandexgpt
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
 class connector extends \local_ai_manager\base_connector {
 
     #[\Override]
-    protected function set_url(): void {
-        $this->apiurl = 'https://llm.api.cloud.yandex.net/foundationModels/v1/completion';
-    }
-
-    #[\Override]
-    protected function set_headers(): void {
-        $this->headers = [
-            'Content-Type' => 'application/json',
-            // Using the API Key from instance settings.
-            'Authorization' => 'Api-Key ' . $this->instance->get_apikey(),
-        ];
-    }
-
-    #[\Override]
     public function get_models_by_purpose(): array {
-        // Models available in YandexGPT.
-        $textmodels = ['yandexgpt-lite', 'yandexgpt'];
+        $textmodels = ['yandexgpt', 'yandexgpt-lite', 'summarization'];
         return [
-            'chat' => $textmodels,
-            'feedback' => $textmodels,
-            'singleprompt' => $textmodels,
-            'translate' => $textmodels,
-            'questiongeneration' => $textmodels,
+                'chat' => $textmodels,
+                'feedback' => $textmodels,
+                'singleprompt' => $textmodels,
+                'translate' => $textmodels,
+                'itt' => $textmodels,
+                'questiongeneration' => $textmodels,
         ];
     }
 
@@ -66,50 +47,98 @@ class connector extends \local_ai_manager\base_connector {
     public function execute_prompt_completion(StreamInterface $result, request_options $requestoptions): prompt_response {
         $content = json_decode($result->getContents(), true);
 
-        if (isset($content['error']) || !isset($content['result']['alternatives'][0]['message']['text'])) {
-            $errormessage = $content['message'] ?? ($content['error']['message'] ?? 'Unknown error from YandexGPT API');
-            throw new \moodle_exception('apierror', 'local_ai_manager', '', null, $errormessage);
+        if (isset($content['error'])) {
+            return prompt_response::create_from_error(
+                $this->instance->get_model(),
+                $content['error']['message'] ?? 'Unknown error'
+            );
         }
 
-        $message = $content['result']['alternatives'][0]['message']['text'];
-        $prompttokencount = (float) ($content['result']['usage']['inputTextTokens'] ?? 0.0);
-        $responsetokencount = (float) ($content['result']['usage']['completionTokens'] ?? 0.0);
-        $totaltokencount = (float) ($content['result']['usage']['totalTokens'] ?? 0.0);
+        $textanswer = $content['result']['alternatives'][0]['message']['text'] ?? '';
+        
+        $usage = new usage(
+            (float) ($content['result']['usage']['totalTokens'] ?? 0),
+            (float) ($content['result']['usage']['inputTextTokens'] ?? 0),
+            (float) ($content['result']['usage']['completionTokens'] ?? 0)
+        );
 
-        return prompt_response::create_from_result($this->instance->get_model(),
-                new usage($totaltokencount, $prompttokencount, $responsetokencount),
-                $message);
+        return prompt_response::create_from_result(
+                $this->instance->get_model(),
+                $usage,
+                $textanswer,
+        );
     }
 
     #[\Override]
     public function get_prompt_data(string $prompttext, request_options $requestoptions): array {
         $options = $requestoptions->get_options();
         $messages = [];
-
+        
         if (array_key_exists('conversationcontext', $options)) {
             foreach ($options['conversationcontext'] as $message) {
-                $role = match ($message['sender']) {
-                    'user' => 'user',
-                    'ai' => 'assistant',
-                    default => continue 2,
-                };
-                $messages[] = ['role' => $role, 'text' => $message['message']];
+                switch ($message['sender']) {
+                    case 'user':
+                        $role = 'user';
+                        break;
+                    case 'ai':
+                        $role = 'assistant';
+                        break;
+                    case 'system':
+                        $role = 'system';
+                        break;
+                    default:
+                        throw new \moodle_exception('exception_badmessageformat', 'local_ai_manager');
+                }
+                $messages[] = [
+                        'role' => $role,
+                        'text' => $message['message'],
+                ];
             }
         }
-
-        $messages[] = ['role' => 'user', 'text' => $prompttext];
-
-        $data = [
-            'modelUri' => 'gpt://' . $this->instance->get_catalog_id() . '/' . $this->instance->get_model(),
-            'completionOptions' => [
-                'stream' => false,
-                'temperature' => $this->instance->get_temperature(),
-                'maxTokens' => $requestoptions->get_max_tokens(),
-            ],
-            'messages' => $messages,
+        
+        $messages[] = [
+                'role' => 'user',
+                'text' => $prompttext,
         ];
 
-        return $data;
+        $modeluri = 'gpt://' . $this->instance->get_catalog_id() . '/' . 
+                    $this->instance->get_model() . '/latest';
+
+        return [
+                'modelUri' => $modeluri,
+                'completionOptions' => [
+                        'stream' => false,
+                        'temperature' => $this->instance->get_temperature(),
+                        'maxTokens' => $options['maxTokens'] ?? 1000,
+                ],
+                'messages' => $messages,
+        ];
+    }
+
+    #[\Override]
+    public function has_customvalue1(): bool {
+        return true;
+    }
+
+    #[\Override]
+    public function has_customvalue2(): bool {
+        return true;
+    }
+
+    #[\Override]
+    protected function get_headers(): array {
+        $headers = parent::get_headers();
+        
+        if ($this->instance->get_auth_type() === instance::AUTH_TYPE_APIKEY) {
+            $headers['Authorization'] = 'Api-Key ' . $this->get_api_key();
+        } else {
+            // For IAM token
+            $headers['Authorization'] = 'Bearer ' . $this->get_api_key();
+        }
+        
+        $headers['x-folder-id'] = $this->instance->get_catalog_id();
+        
+        return $headers;
     }
 
     #[\Override]
