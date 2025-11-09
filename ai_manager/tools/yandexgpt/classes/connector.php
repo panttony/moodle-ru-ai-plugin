@@ -126,11 +126,6 @@ class connector extends \local_ai_manager\base_connector {
     }
 
     #[\Override]
-    public function has_customvalue3(): bool {
-        return true;
-    }
-
-    #[\Override]
     protected function get_headers(): array {
         $headers = parent::get_headers();
         
