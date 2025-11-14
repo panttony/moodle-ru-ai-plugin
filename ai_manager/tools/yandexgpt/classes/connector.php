@@ -71,49 +71,89 @@ class connector extends \local_ai_manager\base_connector {
 
     #[\Override]
     public function get_prompt_data(string $prompttext, request_options $requestoptions): array {
-        $options = $requestoptions->get_options();
-        $messages = [];
-        
-        if (array_key_exists('conversationcontext', $options)) {
-            foreach ($options['conversationcontext'] as $message) {
-                switch ($message['sender']) {
-                    case 'user':
-                        $role = 'user';
-                        break;
-                    case 'ai':
-                        $role = 'assistant';
-                        break;
-                    case 'system':
-                        $role = 'system';
-                        break;
-                    default:
-                        throw new \moodle_exception('exception_badmessageformat', 'local_ai_manager');
-                }
-                $messages[] = [
-                        'role' => $role,
-                        'text' => $message['message'],
-                ];
-            }
-        }
-        
-        $messages[] = [
-                'role' => 'user',
-                'text' => $prompttext,
-        ];
+    global $COURSE, $USER, $DB;
 
-        $modeluri = 'gpt://' . $this->instance->get_catalog_id() . '/' . 
-                    $this->instance->get_model() . '/latest';
+    $options = $requestoptions->get_options();
+    $messages = [];
 
-        return [
-                'modelUri' => $modeluri,
-                'completionOptions' => [
-                        'stream' => false,
-                        'temperature' => $this->instance->get_temperature(),
-                        'maxTokens' => $options['maxTokens'] ?? 1000,
-                ],
-                'messages' => $messages,
-        ];
+    // сбор контекста Moodle 
+
+    // данные курса
+    $coursedata = null;
+    $coursecontext = null;
+    if (!empty($COURSE->id)) {
+        $coursedata = $DB->get_record('course', ['id' => $COURSE->id], '*', MUST_EXIST);
+        $coursecontext = \context_course::instance($COURSE->id);
     }
+
+    // роль пользователя
+    $role = 'user';
+    if ($coursecontext) {
+        $roles = get_user_roles($coursecontext, $USER->id);
+        if (!empty($roles)) {
+            $role = reset($roles)->shortname;
+        }
+    }
+
+    // формируем текст системного контекста без ID
+    
+    $systemcontexttext = "Контекст Moodle:\n";
+    $systemcontexttext .= "Пользователь: " . fullname($USER) . " (роль: {$role})\n";
+
+    if ($coursedata) {
+        $systemcontexttext .= "Курс: " . $coursedata->fullname . "\n";
+        if (!empty($coursedata->summary)) {
+            $systemcontexttext .= "Описание курса: " . strip_tags($coursedata->summary) . "\n";
+        }
+    }
+
+    // добавляем системный контекст первым сообщением
+    
+    $messages[] = [
+        'role' => 'system',
+        'text' => $systemcontexttext,
+    ];
+
+    // история диалога(если есть)
+
+    if (array_key_exists('conversationcontext', $options)) {
+        foreach ($options['conversationcontext'] as $message) {
+            switch ($message['sender']) {
+                case 'user':      $rolemsg = 'user'; break;
+                case 'ai':        $rolemsg = 'assistant'; break;
+                case 'system':    $rolemsg = 'system'; break;
+                default:
+                    throw new \moodle_exception('exception_badmessageformat', 'local_ai_manager');
+            }
+            $messages[] = [
+                'role' => $rolemsg,
+                'text' => $message['message'],
+            ];
+        }
+    }
+
+    // текущее состояние пользователя
+
+    $messages[] = [
+        'role' => 'user',
+        'text' => $prompttext,
+    ];
+
+    // сформировать model request
+
+    $modeluri = 'gpt://' . $this->instance->get_catalog_id() . '/' .
+                $this->instance->get_model() . '/latest';
+
+    return [
+        'modelUri' => $modeluri,
+        'completionOptions' => [
+            'stream' => false,
+            'temperature' => $this->instance->get_temperature(),
+            'maxTokens' => $options['maxTokens'] ?? 1000,
+        ],
+        'messages' => $messages,
+    ];
+}
 
     #[\Override]
     public function has_customvalue1(): bool {
